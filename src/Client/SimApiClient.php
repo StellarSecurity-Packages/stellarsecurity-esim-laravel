@@ -24,14 +24,24 @@ class SimApiClient
     }
 
     /**
+     * Shared HTTP client defaults (timeouts + basic auth).
+     */
+    private function http()
+    {
+        return Http::timeout(35)
+            ->connectTimeout(20)
+            ->withBasicAuth($this->username, $this->password);
+    }
+
+    /**
      * Call GET /v1/sim/plans
      */
     public function plans(array $filters = []): array
     {
         $this->ensureConfigured();
 
-        $response = Http::withBasicAuth($this->username, $this->password)
-            ->get($this->baseUrl . '/v1/sim/plans', $filters)
+        $response = $this->http()
+            ->get(rtrim($this->baseUrl, '/') . '/v1/sim/plans', $filters)
             ->throw();
 
         return $response->json();
@@ -51,22 +61,29 @@ class SimApiClient
     {
         $this->ensureConfigured();
 
-        $response = Http::withBasicAuth($this->username, $this->password)
-            ->post($this->baseUrl . '/v1/sim/order', $payload)
+        $response = $this->http()
+            ->post(rtrim($this->baseUrl, '/') . '/v1/sim/order', $payload)
             ->throw();
 
         return $response->json();
     }
 
     /**
-     * Call GET /v1/sim/query/{planId}
+     * Call POST /v1/sim/query
+     *
+     * Payload:
+     *  [
+     *      'plan_id' => 'client-generated-plan-id',
+     *  ]
      */
     public function query(string $planId): array
     {
         $this->ensureConfigured();
 
-        $response = Http::withBasicAuth($this->username, $this->password)
-            ->get($this->baseUrl . '/v1/sim/query/' . urlencode($planId))
+        $response = $this->http()
+            ->post(rtrim($this->baseUrl, '/') . '/v1/sim/query', [
+                'plan_id' => $planId,
+            ])
             ->throw();
 
         return $response->json();
