@@ -1,18 +1,20 @@
-# stellarsecurity-esim-laravel
+# stellarsecurity/esim-laravel
 
 Thin Laravel client for the Stellar Simcard API.
 
-The Simcard API exposes:
+The package exposes a typed `SimApiClient` for the existing project-style routes:
 
-- `GET  /v1/sim/plans`
-- `POST /v1/sim/order`
-- `GET  /v1/sim/query/{planId}`
+```text
+GET     /v1/sim/plans
+POST    /v1/sim/order
+POST    /v1/sim/query
+POST    /v1/sim/user
+PATCH   /v1/sim/user
+DELETE  /v1/sim/user
+DELETE  /v1/sim/user/all
+```
 
-This package just makes it easy to call those endpoints from any Laravel project.
-
-No controllers, no routes, no migrations. You keep your own API; this package just gives you a typed client.
-
----
+It defines no controllers, application routes, models, migrations, or database tables.
 
 ## Installation
 
@@ -20,93 +22,195 @@ No controllers, no routes, no migrations. You keep your own API; this package ju
 composer require stellarsecurity/esim-laravel
 ```
 
-Laravel will auto-discover the service provider.
+Laravel auto-discovers the service provider.
 
-Optionally publish the config:
+Optionally publish its configuration:
 
 ```bash
 php artisan vendor:publish --tag=sim-config
 ```
 
----
-
-## Configuration (.env)
+## Configuration
 
 ```env
-SIM_API_BASE_URL=https://sim-api.stellar.your-domain.com/api
+SIM_API_BASE_URL=https://your-sim-api.example.com/api
 SIM_API_USERNAME=your-basic-auth-username
 SIM_API_PASSWORD=your-basic-auth-password
+
+SIM_API_TIMEOUT=35
+SIM_API_CONNECT_TIMEOUT=20
+SIM_API_REQUEST_ID_HEADER=X-Request-ID
 ```
 
-These are the credentials and base URL of the **Simcard API** that actually owns the `/v1/sim/*` routes.
-
----
+In Azure App Service, store the credential values as application settings or Key Vault references. Do not put SIM API credentials in a mobile or browser application.
 
 ## Usage
 
-Inject `SimApiClient` anywhere in your app:
-
 ```php
 use StellarSecurity\EsimLaravel\Client\SimApiClient;
 
-class SomeService
+final class EsimService
 {
     public function __construct(
         private readonly SimApiClient $simApi,
     ) {}
-
-    public function example(): void
-    {
-        // Get plans
-        $plans = $this->simApi->plans();
-
-        // Create order
-        $orderResponse = $this->simApi->order([
-            'plan_id'     => 'client-generated-plan-id',
-            'packageCode' => 'EU_10GB_30DAYS',
-            'account_ref' => 'optional-account-ref',
-        ]);
-
-        // Query by plan_id
-        $status = $this->simApi->query('client-generated-plan-id');
-    }
 }
 ```
 
-Or use it directly in a controller:
+### Plans, order and query
 
 ```php
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use StellarSecurity\EsimLaravel\Client\SimApiClient;
+$plans = $this->simApi->plans([
+    'locationCode' => 'FR',
+]);
 
-class EsimController
-{
-    public function __construct(
-        private readonly SimApiClient $simApi,
-    ) {}
+// user_id is optional. Omitting it creates an anonymous eSIM.
+$order = $this->simApi->order([
+    'plan_id' => '1234 1234 1234 1234',
+    'packageCode' => 'FR_10GB_30DAYS',
+    'user_id' => 7345,
+]);
 
-    public function plans(Request $request): JsonResponse
-    {
-        $plans = $this->simApi->plans($request->all());
-
-        return response()->json($plans);
-    }
-}
+$status = $this->simApi->query('1234 1234 1234 1234');
 ```
 
----
+SIM IDs are normalized to an unspaced 16-digit value before transmission.
 
-## What this package is **not**
+## User ownership
 
-- It is **not** the Simcard API itself.
-- It does **not** define routes or controllers.
-- It does **not** define the `simcards` table.
+These methods are intended for trusted server-side UI APIs. The UI API must first resolve the canonical Stellar user ID from the authenticated bearer token. A mobile app must never be allowed to choose a trusted `user_id` itself.
 
-It is a **small HTTP client** so your other projects can talk to the Simcard API's:
+### List a user's eSIMs
 
-- `/v1/sim/plans`
-- `/v1/sim/order`
-- `/v1/sim/query/{planId}`
+Project-style method:
 
-using configured base URL + basic auth, without copy/pasting HTTP calls every time.
+```php
+$response = $this->simApi->user($userId);
+```
+
+Descriptive alias:
+
+```php
+$response = $this->simApi->listUserSimcards($userId);
+```
+
+Calls:
+
+```text
+POST /v1/sim/user
+```
+
+### Assign an existing SIM ID
+
+Project-style method:
+
+```php
+$response = $this->simApi->patchUser(
+    planId: '1234 1234 1234 1234',
+    userId: $userId,
+    source: 'mobile_app',
+);
+```
+
+Descriptive alias:
+
+```php
+$response = $this->simApi->assignSimcardToUser(
+    planId: '1234 1234 1234 1234',
+    userId: $userId,
+);
+```
+
+Calls:
+
+```text
+PATCH /v1/sim/user
+```
+
+Allowed source values:
+
+```text
+purchase
+manual_claim
+account_migration
+support
+topup
+mobile_app
+```
+
+The SIM API stores a keyed, versioned user reference rather than the raw user ID.
+
+### Detach one eSIM
+
+```php
+$response = $this->simApi->deleteUser(
+    planId: '1234 1234 1234 1234',
+    userId: $userId,
+);
+
+// Alias:
+$response = $this->simApi->detachSimcardFromUser($planId, $userId);
+```
+
+Calls:
+
+```text
+DELETE /v1/sim/user
+```
+
+### Detach all eSIMs for account deletion
+
+```php
+$response = $this->simApi->deleteAllUser($userId);
+
+// Alias:
+$response = $this->simApi->detachAllSimcardsFromUser($userId);
+```
+
+Calls:
+
+```text
+DELETE /v1/sim/user/all
+```
+
+## Request IDs
+
+Every method accepts an optional final `$requestId` argument:
+
+```php
+$response = $this->simApi->user(
+    userId: $userId,
+    requestId: $request->header('X-Request-ID'),
+);
+```
+
+When omitted inside an HTTP request, the client automatically forwards the incoming configured request-ID header when present.
+
+## Validation
+
+The client rejects invalid values before making a request:
+
+- `user_id` must be greater than zero.
+- `plan_id` must contain exactly 16 digits after spaces are removed.
+- Ownership source must be one of the SIM API's supported values.
+
+HTTP failures are raised through Laravel's normal `RequestException`. A non-JSON success response raises `UnexpectedValueException`.
+
+## Security boundary
+
+Correct architecture:
+
+```text
+Mobile app
+    -> authenticated Mobile UI API
+    -> stellarsecurity/esim-laravel
+    -> Stellar Simcard API
+```
+
+Do not install or configure this package inside a distributed client application. Its Basic Auth credentials are server secrets.
+
+## Testing
+
+```bash
+composer test
+```

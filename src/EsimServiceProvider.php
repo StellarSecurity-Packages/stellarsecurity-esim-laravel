@@ -13,9 +13,12 @@ class EsimServiceProvider extends ServiceProvider
 
         $this->app->singleton(SimApiClient::class, function () {
             return new SimApiClient(
-                baseUrl: rtrim(config('sim.base_url'), '/'),
+                baseUrl: rtrim((string) config('sim.base_url'), '/'),
                 username: (string) config('sim.username'),
                 password: (string) config('sim.password'),
+                timeoutSeconds: (int) config('sim.timeout', 35),
+                connectTimeoutSeconds: (int) config('sim.connect_timeout', 20),
+                requestIdHeader: (string) config('sim.request_id_header', 'X-Request-ID'),
             );
         });
     }

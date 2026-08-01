@@ -7,10 +7,8 @@ return [
     | Base URL for the Simcard API
     |--------------------------------------------------------------------------
     |
-    | This is the base URL of the Simcard API that exposes:
-    |   GET  /v1/sim/plans
-    |   POST /v1/sim/order
-    |   GET  /v1/sim/query/{planId}
+    | The URL should normally include the API prefix, for example:
+    | https://sim-api.example.com/api
     |
     */
 
@@ -24,5 +22,15 @@ return [
 
     'username' => env('SIM_API_USERNAME', ''),
     'password' => env('SIM_API_PASSWORD', ''),
+
+    /*
+    |--------------------------------------------------------------------------
+    | HTTP client
+    |--------------------------------------------------------------------------
+    */
+
+    'timeout' => (int) env('SIM_API_TIMEOUT', 35),
+    'connect_timeout' => (int) env('SIM_API_CONNECT_TIMEOUT', 20),
+    'request_id_header' => env('SIM_API_REQUEST_ID_HEADER', 'X-Request-ID'),
 
 ];

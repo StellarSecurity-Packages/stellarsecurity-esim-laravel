@@ -3,13 +3,30 @@
   "description": "Thin Laravel client for Stellar Simcard API (/v1/sim/*).",
   "type": "library",
   "license": "MIT",
+  "keywords": [
+    "stellar security",
+    "esim",
+    "laravel",
+    "simcard"
+  ],
   "autoload": {
     "psr-4": {
       "StellarSecurity\\EsimLaravel\\": "src/"
     }
   },
+  "autoload-dev": {
+    "psr-4": {
+      "StellarSecurity\\EsimLaravel\\Tests\\": "tests/"
+    }
+  },
   "require": {
-    "php": "^8.2"
+    "php": "^8.2",
+    "illuminate/http": "^11.0 || ^12.0",
+    "illuminate/support": "^11.0 || ^12.0"
+  },
+  "require-dev": {
+    "orchestra/testbench": "^9.0 || ^10.0",
+    "phpunit/phpunit": "^11.0"
   },
   "extra": {
     "laravel": {
@@ -17,6 +34,9 @@
         "StellarSecurity\\EsimLaravel\\EsimServiceProvider"
       ]
     }
+  },
+  "scripts": {
+    "test": "phpunit"
   },
   "minimum-stability": "stable",
   "prefer-stable": true
